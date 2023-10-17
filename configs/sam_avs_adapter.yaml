@@ -98,6 +98,16 @@ model:
         - 15
         - 23
         - 31
+
+      tau: 0.03
+      dropout_img: 0.0
+      dropout_aud: 0.0
+      attn_assign: soft
+      num_class: 221
+      depth_aud: 3
+      depth_vis: 3
+      pretrained_path: "assets/sam_vit_h_4b8939.pth"
+
 optimizer:
   name: adamw
   args:

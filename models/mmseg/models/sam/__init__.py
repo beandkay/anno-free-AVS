@@ -9,3 +9,5 @@ from .mask_decoder import MaskDecoder
 from .prompt_encoder import PromptEncoder
 from .sam import Sam
 from .transformer import TwoWayTransformer
+from .avgn import AVGN
+from .grouping import ModalityTrans

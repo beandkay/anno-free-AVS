@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models import register
-from .mmseg.models.sam import ImageEncoderViT, MaskDecoder, TwoWayTransformer
+from .mmseg.models.sam import ImageEncoderViT, MaskDecoder, TwoWayTransformer, AVGN
 
 logger = logging.getLogger(__name__)
 from .iou_loss import IOU
@@ -132,23 +132,35 @@ class SAM(nn.Module):
         super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.embed_dim = encoder_mode['embed_dim']
-        self.image_encoder = ImageEncoderViT(
-            img_size=inp_size,
-            patch_size=encoder_mode['patch_size'],
-            in_chans=3,
-            embed_dim=encoder_mode['embed_dim'],
-            depth=encoder_mode['depth'],
-            num_heads=encoder_mode['num_heads'],
-            mlp_ratio=encoder_mode['mlp_ratio'],
-            out_chans=encoder_mode['out_chans'],
-            qkv_bias=encoder_mode['qkv_bias'],
-            norm_layer=partial(torch.nn.LayerNorm, eps=1e-6),
-            act_layer=nn.GELU,
-            use_rel_pos=encoder_mode['use_rel_pos'],
-            rel_pos_zero_init=True,
-            window_size=encoder_mode['window_size'],
-            global_attn_indexes=encoder_mode['global_attn_indexes'],
+        # self.image_encoder = ImageEncoderViT(
+        #     img_size=inp_size,
+        #     patch_size=encoder_mode['patch_size'],
+        #     in_chans=3,
+        #     embed_dim=encoder_mode['embed_dim'],
+        #     depth=encoder_mode['depth'],
+        #     num_heads=encoder_mode['num_heads'],
+        #     mlp_ratio=encoder_mode['mlp_ratio'],
+        #     out_chans=encoder_mode['out_chans'],
+        #     qkv_bias=encoder_mode['qkv_bias'],
+        #     norm_layer=partial(torch.nn.LayerNorm, eps=1e-6),
+        #     act_layer=nn.GELU,
+        #     use_rel_pos=encoder_mode['use_rel_pos'],
+        #     rel_pos_zero_init=True,
+        #     window_size=encoder_mode['window_size'],
+        #     global_attn_indexes=encoder_mode['global_attn_indexes']
+        # )
+        self.image_audio_encoder = AVGN(
+            encoder_mode['tau'],
+            encoder_mode['prompt_embed_dim'],
+            encoder_mode['dropout_img'],
+            encoder_mode['dropout_aud'],
+            encoder_mode['attn_assign'],
+            encoder_mode['num_class'],
+            encoder_mode['depth_aud'],
+            encoder_mode['depth_vis'],
         )
+        self.image_audio_encoder.load_state_dict(torch.load(encoder_mode['pretrained_path']))
+
         self.prompt_embed_dim = encoder_mode['prompt_embed_dim']
         self.mask_decoder = MaskDecoder(
             num_multimask_outputs=3,
@@ -163,7 +175,7 @@ class SAM(nn.Module):
             iou_head_hidden_dim=256,
         )
 
-        self.audio_encoder = audio_extractor(vggish_cfg, device=self.device)
+        # self.audio_encoder = audio_extractor(vggish_cfg, device=self.device)
 
         if 'evp' in encoder_mode['name']:
             for k, p in self.encoder.named_parameters():
@@ -231,7 +243,10 @@ class SAM(nn.Module):
         # import ipdb; ipdb.set_trace()
         # self.input: torch.Size([2, 3, 1024, 1024])
         # self.spec: torch.Size([2, 512])
-        self.features = self.image_encoder(self.input, self.spec)  # torch.Size([2, 256, 64, 64])
+        heatmap, xv_attn, xa_attn, self.features = self.image_encoder(self.input, self.spec, mode='test')  # torch.Size([2, 256, 64, 64])
+        xav_attn = torch.cat((xv_attn, xa_attn), dim=1)
+
+        sparse_embeddings = torch.cat([sparse_embeddings, xav_attn], dim=1)
 
         # Predict masks
         low_res_masks, iou_predictions = self.mask_decoder(
@@ -270,11 +285,16 @@ class SAM(nn.Module):
         #     spec_out = nn.AdaptiveMaxPool2d((1, 1))(spec_out).reshape(B_a, -1)
         #     spec = spec_out.detach().to(self.device)
 
-        with torch.no_grad():
-            spec_out = self.audio_encoder(spec).reshape(B_a, -1)
-            spec = spec_out.detach().to(self.device)
+        # with torch.no_grad():
+        #     spec_out = self.audio_encoder(spec).reshape(B_a, -1)
+        #     spec = spec_out.detach().to(self.device)
 
-        self.features = self.image_encoder(input, spec)  # torch.Size([5, 256, 64, 64])
+        # self.features = self.image_encoder(input, spec)  # torch.Size([5, 256, 64, 64])
+
+        heatmap, xv_attn, xa_attn, self.features = self.image_encoder(self.input, self.spec, mode='test')  # torch.Size([2, 256, 64, 64])
+        xav_attn = torch.cat((xv_attn, xa_attn), dim=1)
+
+        sparse_embeddings = torch.cat([sparse_embeddings, xav_attn], dim=1)
 
         # Predict masks
         low_res_masks, iou_predictions = self.mask_decoder(
