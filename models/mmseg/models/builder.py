@@ -2,11 +2,13 @@ import warnings
 
 from mmcv.utils import Registry, build_from_cfg
 from torch import nn
+
 BACKBONES = Registry('backbone')
 NECKS = Registry('neck')
 HEADS = Registry('head')
 LOSSES = Registry('loss')
 SEGMENTORS = Registry('segmentor')
+
 
 # from mmseg.models.builder import BACKBONES
 # bbb = BACKBONES.get('mit_b0')

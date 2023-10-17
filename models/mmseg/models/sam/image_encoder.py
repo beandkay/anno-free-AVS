@@ -4,16 +4,17 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import math
+import warnings
+from itertools import repeat
+from typing import Optional, Tuple, Type
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import Optional, Tuple, Type
-
 from .common import LayerNorm2d, MLPBlock
-import math
-import warnings
-from itertools import repeat
+
 TORCH_MAJOR = int(torch.__version__.split('.')[0])
 TORCH_MINOR = int(torch.__version__.split('.')[1])
 if TORCH_MAJOR == 1 and TORCH_MINOR < 8:
@@ -21,26 +22,27 @@ if TORCH_MAJOR == 1 and TORCH_MINOR < 8:
 else:
     import collections.abc as container_abcs
 
+
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
 class ImageEncoderViT(nn.Module):
     def __init__(
-        self,
-        img_size: int = 1024,
-        patch_size: int = 16,
-        in_chans: int = 3,
-        embed_dim: int = 768,
-        depth: int = 12,
-        num_heads: int = 12,
-        mlp_ratio: float = 4.0,
-        out_chans: int = 256,
-        qkv_bias: bool = True,
-        norm_layer: Type[nn.Module] = nn.LayerNorm,
-        act_layer: Type[nn.Module] = nn.GELU,
-        use_abs_pos: bool = True,
-        use_rel_pos: bool = False,
-        rel_pos_zero_init: bool = True,
-        window_size: int = 0,
-        global_attn_indexes: Tuple[int, ...] = (),
+            self,
+            img_size: int = 1024,
+            patch_size: int = 16,
+            in_chans: int = 3,
+            embed_dim: int = 768,
+            depth: int = 12,
+            num_heads: int = 12,
+            mlp_ratio: float = 4.0,
+            out_chans: int = 256,
+            qkv_bias: bool = True,
+            norm_layer: Type[nn.Module] = nn.LayerNorm,
+            act_layer: Type[nn.Module] = nn.GELU,
+            use_abs_pos: bool = True,
+            use_rel_pos: bool = False,
+            rel_pos_zero_init: bool = True,
+            window_size: int = 0,
+            global_attn_indexes: Tuple[int, ...] = (),
     ) -> None:
         """
         Args:
@@ -121,13 +123,13 @@ class ImageEncoderViT(nn.Module):
         self.handcrafted_tune = True
         self.embedding_tune = True
         self.adaptor = 'adaptor'
-        
+
         self.num_stages = self.depth
         self.out_indices = tuple(range(self.num_stages))
 
         ######### self.prompt_generator = AudioPromptGenerator(embed_dim=embed_dim, depth=depth, aud_in_dim=512, aud_hidden_dim=512)
-        self.prompt_generator = AudioPromptGenerator(embed_dim=embed_dim, depth=depth, aud_in_dim=128, aud_hidden_dim=512)
-
+        self.prompt_generator = AudioPromptGenerator(embed_dim=embed_dim, depth=depth, aud_in_dim=128,
+                                                     aud_hidden_dim=512)
 
     def forward(self, x: torch.Tensor, spec: torch.Tensor) -> torch.Tensor:
         inp = x
@@ -156,10 +158,12 @@ class ImageEncoderViT(nn.Module):
 
         return x
 
+
 def to_2tuple(x):
     if isinstance(x, container_abcs.Iterable):
         return x
     return tuple(repeat(x, 2))
+
 
 def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
     # type: (Tensor, float, float, float, float) -> Tensor
@@ -180,6 +184,7 @@ def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
         >>> nn.init.trunc_normal_(w)
     """
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
+
 
 def _no_grad_trunc_normal_(tensor, mean, std, a, b):
     # Cut & paste from PyTorch official master until it's in a few official releases - RW
@@ -215,7 +220,6 @@ def _no_grad_trunc_normal_(tensor, mean, std, a, b):
         # Clamp to ensure it's in the proper range
         tensor.clamp_(min=a, max=b)
         return tensor
-
 
 
 class AudioPromptGenerator(nn.Module):
@@ -255,10 +259,9 @@ class AudioPromptGenerator(nn.Module):
             if m.bias is not None:
                 m.bias.data.zero_()
 
-        
     def forward(self, spec_feature):
         # import ipdb; ipdb.set_trace()
-        B, C = spec_feature.shape             # C:512
+        B, C = spec_feature.shape  # C:512
         # handcrafted_feature = handcrafted_feature.view(N, C, H*W).permute(0, 2, 1)
         prompts = []
         for i in range(self.depth):
@@ -266,12 +269,6 @@ class AudioPromptGenerator(nn.Module):
             prompt = lightweight_mlp(spec_feature)
             prompts.append(self.shared_mlp(prompt))
         return prompts
-
-    
-
-
-
-
 
 
 class PromptGenerator(nn.Module):
@@ -292,18 +289,18 @@ class PromptGenerator(nn.Module):
         self.embedding_tune = embedding_tune
         self.adaptor = adaptor
 
-        self.shared_mlp = nn.Linear(self.embed_dim//self.scale_factor, self.embed_dim)
-        self.embedding_generator = nn.Linear(self.embed_dim, self.embed_dim//self.scale_factor)
+        self.shared_mlp = nn.Linear(self.embed_dim // self.scale_factor, self.embed_dim)
+        self.embedding_generator = nn.Linear(self.embed_dim, self.embed_dim // self.scale_factor)
         for i in range(self.depth):
             lightweight_mlp = nn.Sequential(
-                nn.Linear(self.embed_dim//self.scale_factor, self.embed_dim//self.scale_factor),
+                nn.Linear(self.embed_dim // self.scale_factor, self.embed_dim // self.scale_factor),
                 nn.GELU()
             )
             setattr(self, 'lightweight_mlp_{}'.format(str(i)), lightweight_mlp)
 
         self.prompt_generator = PatchEmbed2(img_size=img_size,
-                                                   patch_size=patch_size, in_chans=3,
-                                                   embed_dim=self.embed_dim//self.scale_factor)
+                                            patch_size=patch_size, in_chans=3,
+                                            embed_dim=self.embed_dim // self.scale_factor)
 
         self.apply(self._init_weights)
 
@@ -324,7 +321,7 @@ class PromptGenerator(nn.Module):
 
     def init_embeddings(self, x):
         N, C, H, W = x.permute(0, 3, 1, 2).shape
-        x = x.reshape(N, C, H*W).permute(0, 2, 1)
+        x = x.reshape(N, C, H * W).permute(0, 2, 1)
         return self.embedding_generator(x)
 
     def init_handcrafted(self, x):
@@ -333,7 +330,7 @@ class PromptGenerator(nn.Module):
 
     def get_prompt(self, handcrafted_feature, embedding_feature):
         N, C, H, W = handcrafted_feature.shape
-        handcrafted_feature = handcrafted_feature.view(N, C, H*W).permute(0, 2, 1)
+        handcrafted_feature = handcrafted_feature.view(N, C, H * W).permute(0, 2, 1)
         prompts = []
         for i in range(self.depth):
             lightweight_mlp = getattr(self, 'lightweight_mlp_{}'.format(str(i)))
@@ -348,7 +345,8 @@ class PromptGenerator(nn.Module):
             x = pyr_A[:-1]
             laplacian = x[0]
             for x_i in x[1:]:
-                x_i = F.interpolate(x_i, size=(laplacian.size(2), laplacian.size(3)), mode='bilinear', align_corners=True)
+                x_i = F.interpolate(x_i, size=(laplacian.size(2), laplacian.size(3)), mode='bilinear',
+                                    align_corners=True)
                 laplacian = torch.cat([laplacian, x_i], dim=1)
             x = laplacian
         elif self.input_type == 'fft':
@@ -382,7 +380,7 @@ class PromptGenerator(nn.Module):
         mask = torch.zeros(x.shape).to(x.device)
         w, h = x.shape[-2:]
         line = int((w * h * rate) ** .5 // 2)
-        mask[:, :, w//2-line:w//2+line, h//2-line:h//2+line] = 1
+        mask[:, :, w // 2 - line:w // 2 + line, h // 2 - line:h // 2 + line] = 1
 
         fft = torch.fft.fftshift(torch.fft.fft2(x, norm="forward"))
         # mask[fft.float() > self.freq_nums] = 1
@@ -399,6 +397,7 @@ class PromptGenerator(nn.Module):
 
         return inv
 
+
 class PatchEmbed2(nn.Module):
     """ Image to Patch Embedding
     """
@@ -408,7 +407,7 @@ class PatchEmbed2(nn.Module):
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
         num_patches = (img_size[1] // patch_size[1]) * \
-            (img_size[0] // patch_size[0])
+                      (img_size[0] // patch_size[0])
         self.img_size = img_size
         self.patch_size = patch_size
         self.num_patches = num_patches
@@ -431,17 +430,17 @@ class Block(nn.Module):
     """Transformer blocks with support of window attention and residual propagation blocks"""
 
     def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        mlp_ratio: float = 4.0,
-        qkv_bias: bool = True,
-        norm_layer: Type[nn.Module] = nn.LayerNorm,
-        act_layer: Type[nn.Module] = nn.GELU,
-        use_rel_pos: bool = False,
-        rel_pos_zero_init: bool = True,
-        window_size: int = 0,
-        input_size: Optional[Tuple[int, int]] = None,
+            self,
+            dim: int,
+            num_heads: int,
+            mlp_ratio: float = 4.0,
+            qkv_bias: bool = True,
+            norm_layer: Type[nn.Module] = nn.LayerNorm,
+            act_layer: Type[nn.Module] = nn.GELU,
+            use_rel_pos: bool = False,
+            rel_pos_zero_init: bool = True,
+            window_size: int = 0,
+            input_size: Optional[Tuple[int, int]] = None,
     ) -> None:
         """
         Args:
@@ -497,13 +496,13 @@ class Attention(nn.Module):
     """Multi-head Attention block with relative position embeddings."""
 
     def __init__(
-        self,
-        dim: int,
-        num_heads: int = 8,
-        qkv_bias: bool = True,
-        use_rel_pos: bool = False,
-        rel_pos_zero_init: bool = True,
-        input_size: Optional[Tuple[int, int]] = None,
+            self,
+            dim: int,
+            num_heads: int = 8,
+            qkv_bias: bool = True,
+            use_rel_pos: bool = False,
+            rel_pos_zero_init: bool = True,
+            input_size: Optional[Tuple[int, int]] = None,
     ) -> None:
         """
         Args:
@@ -518,7 +517,7 @@ class Attention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = head_dim**-0.5
+        self.scale = head_dim ** -0.5
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.proj = nn.Linear(dim, dim)
@@ -526,7 +525,7 @@ class Attention(nn.Module):
         self.use_rel_pos = use_rel_pos
         if self.use_rel_pos:
             assert (
-                input_size is not None
+                    input_size is not None
             ), "Input size must be provided if using relative positional encoding."
             # initialize relative positional embeddings
             self.rel_pos_h = nn.Parameter(torch.zeros(2 * input_size[0] - 1, head_dim))
@@ -576,7 +575,7 @@ def window_partition(x: torch.Tensor, window_size: int) -> Tuple[torch.Tensor, T
 
 
 def window_unpartition(
-    windows: torch.Tensor, window_size: int, pad_hw: Tuple[int, int], hw: Tuple[int, int]
+        windows: torch.Tensor, window_size: int, pad_hw: Tuple[int, int], hw: Tuple[int, int]
 ) -> torch.Tensor:
     """
     Window unpartition into original sequences and removing padding.
@@ -634,12 +633,12 @@ def get_rel_pos(q_size: int, k_size: int, rel_pos: torch.Tensor) -> torch.Tensor
 
 
 def add_decomposed_rel_pos(
-    attn: torch.Tensor,
-    q: torch.Tensor,
-    rel_pos_h: torch.Tensor,
-    rel_pos_w: torch.Tensor,
-    q_size: Tuple[int, int],
-    k_size: Tuple[int, int],
+        attn: torch.Tensor,
+        q: torch.Tensor,
+        rel_pos_h: torch.Tensor,
+        rel_pos_w: torch.Tensor,
+        q_size: Tuple[int, int],
+        k_size: Tuple[int, int],
 ) -> torch.Tensor:
     """
     Calculate decomposed Relative Positional Embeddings from :paper:`mvitv2`.
@@ -666,7 +665,7 @@ def add_decomposed_rel_pos(
     rel_w = torch.einsum("bhwc,wkc->bhwk", r_q, Rw)
 
     attn = (
-        attn.view(B, q_h, q_w, k_h, k_w) + rel_h[:, :, :, :, None] + rel_w[:, :, :, None, :]
+            attn.view(B, q_h, q_w, k_h, k_w) + rel_h[:, :, :, :, None] + rel_w[:, :, :, None, :]
     ).view(B, q_h * q_w, k_h * k_w)
 
     return attn
@@ -678,12 +677,12 @@ class PatchEmbed(nn.Module):
     """
 
     def __init__(
-        self,
-        kernel_size: Tuple[int, int] = (16, 16),
-        stride: Tuple[int, int] = (16, 16),
-        padding: Tuple[int, int] = (0, 0),
-        in_chans: int = 3,
-        embed_dim: int = 768,
+            self,
+            kernel_size: Tuple[int, int] = (16, 16),
+            stride: Tuple[int, int] = (16, 16),
+            padding: Tuple[int, int] = (0, 0),
+            in_chans: int = 3,
+            embed_dim: int = 768,
     ) -> None:
         """
         Args:

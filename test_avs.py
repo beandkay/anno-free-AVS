@@ -1,24 +1,19 @@
 import argparse
 import os
-import ipdb
-import yaml
+import warnings
+
 import torch
+import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-import warnings
 warnings.simplefilter("ignore", UserWarning)
 
-import datasets
 import models
-import utils
 
 from torchvision import transforms
-from mmcv.runner import load_checkpoint
 
-from collections import defaultdict
 from utility import mask_iou, Eval_Fmeasure, AverageMeter, MetricLogger, save_single_mask
-
 
 
 def make_data_loader(tag='', args=None):
@@ -28,16 +23,15 @@ def make_data_loader(tag='', args=None):
     elif args.subset == 'ms3':
         from datasets.avsb_dataloader_vggish_ms3_eval import S4Dataset
         dataset = S4Dataset(split=tag, args=args)
-    elif args.subset == 's4':        
+    elif args.subset == 's4':
         from datasets.avsb_dataloader_vggish import S4Dataset
         dataset = S4Dataset(split=tag, args=args)
 
     print('{} dataset: size={}'.format(tag, len(dataset)))
-        
-    loader = DataLoader(dataset, batch_size=args.batch_size,
-        shuffle=False, num_workers=args.n_threads, pin_memory=True)
-    return loader
 
+    loader = DataLoader(dataset, batch_size=args.batch_size,
+                        shuffle=False, num_workers=args.n_threads, pin_memory=True)
+    return loader
 
 
 def tensor2PIL(tensor):
@@ -66,7 +60,7 @@ def evaluate_avs_synthetic(loader, model, args):
         mask = mask.squeeze(dim=2).to(device)
         bs, T, H, W = mask.size()
 
-        all_pred_masks = [] 
+        all_pred_masks = []
 
         # Assume the test batch_size is 1
         for idx in range(bs):
@@ -79,9 +73,9 @@ def evaluate_avs_synthetic(loader, model, args):
             all_pred_masks.append(mask_pred)
         all_pred_masks = torch.stack(all_pred_masks, dim=0)  # BxTxHxW
 
-        gt_masks = mask.reshape(bs*T, H, W)
-        pred_masks = all_pred_masks.reshape(bs*T, H, W)
-        
+        gt_masks = mask.reshape(bs * T, H, W)
+        pred_masks = all_pred_masks.reshape(bs * T, H, W)
+
         miou = mask_iou(pred_masks, gt_masks)
         avg_meter_miou.add({'miou': miou})
         F_score = Eval_Fmeasure(pred_masks, gt_masks)
@@ -100,10 +94,9 @@ def evaluate_avs_synthetic(loader, model, args):
     miou = (avg_meter_miou.pop('miou'))
     F_score = (avg_meter_F.pop('F_score'))
     eval_metrics = {'miou': miou.item(),
-                    'F_score': F_score  }
-    
-    return eval_metrics
+                    'F_score': F_score}
 
+    return eval_metrics
 
 
 @torch.no_grad()
@@ -125,7 +118,7 @@ def evaluate_avs_S4(loader, model, args):
         mask = mask.squeeze(dim=2).to(device)
         bs, T, H, W = mask.size()
 
-        all_pred_masks = [] 
+        all_pred_masks = []
 
         # Assume the test batch_size is 1
         for idx in range(bs):
@@ -138,9 +131,9 @@ def evaluate_avs_S4(loader, model, args):
             all_pred_masks.append(mask_pred)
         all_pred_masks = torch.stack(all_pred_masks, dim=0)  # BxTxHxW
 
-        gt_masks = mask.reshape(bs*T, H, W)
-        pred_masks = all_pred_masks.reshape(bs*T, H, W)
-        
+        gt_masks = mask.reshape(bs * T, H, W)
+        pred_masks = all_pred_masks.reshape(bs * T, H, W)
+
         miou = mask_iou(pred_masks, gt_masks)
         avg_meter_miou.add({'miou': miou})
         F_score = Eval_Fmeasure(pred_masks, gt_masks)
@@ -153,7 +146,7 @@ def evaluate_avs_S4(loader, model, args):
                 os.makedirs(save_dir)
             for i in range(pred_masks.size(0)):
                 each_mask = pred_masks[i]
-                each_mask_name = video_name[0] + '_{}'.format(i+1) + '.png'
+                each_mask_name = video_name[0] + '_{}'.format(i + 1) + '.png'
                 save_single_mask(each_mask, os.path.join(save_dir, each_mask_name))
 
     miou = (avg_meter_miou.pop('miou'))
@@ -161,11 +154,8 @@ def evaluate_avs_S4(loader, model, args):
     eval_metrics = {'miou': miou.item(),
                     'F_score': F_score
                     }
-    
+
     return eval_metrics
-
-
-
 
 
 if __name__ == '__main__':
@@ -183,8 +173,10 @@ if __name__ == '__main__':
     parser.add_argument('--save_mask', default=False, action='store_true', help='Save mask in the test stage')
     parser.add_argument('--save_res_by_cat', default=False, action='store_true', help='Save test results by category')
     parser.add_argument('--subset', type=str, default="s4", help="which subset of avsbench: s4 | ms3 | synthetic")
-    parser.add_argument('--openset', default=False, action='store_true', help='Open set traing and evaluation of S4 subset ')
-    parser.add_argument('--infer', default=False, action='store_true', help='Open set traing and evaluation of S4 subset ')
+    parser.add_argument('--openset', default=False, action='store_true',
+                        help='Open set traing and evaluation of S4 subset ')
+    parser.add_argument('--infer', default=False, action='store_true',
+                        help='Open set traing and evaluation of S4 subset ')
     args = parser.parse_args()
 
     if args.eval:
@@ -192,26 +184,24 @@ if __name__ == '__main__':
         with open(args.config, 'r') as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
             args.config = config
-    
-    
+
     spec = config['test_dataset']
     loader = make_data_loader(tag='test', args=args)
 
     model = models.make(config['model']).cuda()
     sam_checkpoint = torch.load(args.eval, map_location='cuda:0')
     model.load_state_dict(sam_checkpoint, strict=True)
-    
+
     if args.subset == "synthetic":
         results = evaluate_avs_synthetic(loader, model, args)
-        with open(os.path.join(os.path.dirname(args.eval), 'test_res_synthetic.txt'),'w') as f:
+        with open(os.path.join(os.path.dirname(args.eval), 'test_res_synthetic.txt'), 'w') as f:
             f.writelines("mIoU: " + str(results['miou']) + '\n')
             f.writelines("F-score: " + str(results['F_score']) + '\n')
     else:
         results = evaluate_avs_S4(loader, model, args)
-        with open(os.path.join(os.path.dirname(args.eval), 'test_res.txt'),'w') as f:
+        with open(os.path.join(os.path.dirname(args.eval), 'test_res.txt'), 'w') as f:
             f.writelines("mIoU: " + str(results['miou']) + '\n')
             f.writelines("F-score: " + str(results['F_score']) + '\n')
 
     print('Metric-MIoU: {:.4f}'.format(results['miou']))
     print('Metric-FScore: {:.4f}'.format(results['F_score']))
-   

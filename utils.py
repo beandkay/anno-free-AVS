@@ -1,11 +1,12 @@
 import os
-import time
 import shutil
+import time
 
-import torch
 import numpy as np
-from torch.optim import SGD, Adam, AdamW
+import torch
 from tensorboardX import SummaryWriter
+from torch.optim import SGD, Adam, AdamW
+
 
 class Averager():
 
@@ -61,7 +62,7 @@ def ensure_path(path, remove=True):
     basename = os.path.basename(path.rstrip('/'))
     if os.path.exists(path):
         if remove and (basename.startswith('_')
-                or input('{} exists, remove? (y/[n]): '.format(path)) == 'y'):
+                       or input('{} exists, remove? (y/[n]): '.format(path)) == 'y'):
             shutil.rmtree(path)
             os.makedirs(path, exist_ok=True)
     else:
@@ -115,10 +116,3 @@ def make_coord(shape, ranges=None, flatten=True):
     #     ret = ret.view(-1, ret.shape[-1])
 
     return ret
-
-
-
-
-
-
-

@@ -86,10 +86,10 @@ def total_intersect_and_union(results,
 
     num_imgs = len(results)
     assert len(gt_seg_maps) == num_imgs
-    total_area_intersect = np.zeros((num_classes, ), dtype=np.float)
-    total_area_union = np.zeros((num_classes, ), dtype=np.float)
-    total_area_pred_label = np.zeros((num_classes, ), dtype=np.float)
-    total_area_label = np.zeros((num_classes, ), dtype=np.float)
+    total_area_intersect = np.zeros((num_classes,), dtype=np.float)
+    total_area_union = np.zeros((num_classes,), dtype=np.float)
+    total_area_pred_label = np.zeros((num_classes,), dtype=np.float)
+    total_area_label = np.zeros((num_classes,), dtype=np.float)
     for i in range(num_imgs):
         area_intersect, area_union, area_pred_label, area_label = \
             intersect_and_union(results[i], gt_seg_maps[i], num_classes,
@@ -220,7 +220,7 @@ def eval_metrics(results,
             ret_metrics.append(iou)
         elif metric == 'mDice':
             dice = 2 * total_area_intersect / (
-                total_area_pred_label + total_area_label)
+                    total_area_pred_label + total_area_label)
             ret_metrics.append(dice)
     if nan_to_num is not None:
         ret_metrics = [

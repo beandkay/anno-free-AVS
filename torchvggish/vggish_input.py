@@ -15,16 +15,14 @@
 
 """Compute input examples for VGGish from audio waveform."""
 
+import numpy as np
+import resampy
+import soundfile as sf
 # Modification: Return torch tensors rather than numpy arrays
 import torch
 
-import numpy as np
-import resampy
-
 from . import mel_features
 from . import vggish_params
-
-import soundfile as sf
 
 
 def waveform_to_examples(data, sample_rate, return_tensor=True):

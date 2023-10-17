@@ -1,20 +1,16 @@
-import os
 import json
-from PIL import Image
+import os
 
-import pickle
-import imageio
-import numpy as np
-import torch
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-import random
+
 from datasets import register
 
 
 @register('image-folder')
 class ImageFolder(Dataset):
-    def __init__(self, path,  split_file=None, split_key=None, first_k=None, size=None,
+    def __init__(self, path, split_file=None, split_key=None, first_k=None, size=None,
                  repeat=1, cache='none', mask=False):
         self.repeat = repeat
         self.cache = cache
@@ -73,6 +69,7 @@ class ImageFolder(Dataset):
             return Image.open(file).convert('L')
         else:
             return Image.open(file).convert('RGB')
+
 
 @register('paired-image-folders')
 class PairedImageFolders(Dataset):

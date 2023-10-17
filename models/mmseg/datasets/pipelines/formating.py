@@ -132,7 +132,7 @@ class Transpose(object):
 
     def __repr__(self):
         return self.__class__.__name__ + \
-               f'(keys={self.keys}, order={self.order})'
+            f'(keys={self.keys}, order={self.order})'
 
 
 @PIPELINES.register_module()
@@ -207,7 +207,7 @@ class DefaultFormatBundle(object):
             # convert to long
             results['gt_semantic_seg'] = DC(
                 to_tensor(results['gt_semantic_seg'][None,
-                                                     ...].astype(np.int64)),
+                ...].astype(np.int64)),
                 stack=True)
         return results
 
@@ -285,4 +285,4 @@ class Collect(object):
 
     def __repr__(self):
         return self.__class__.__name__ + \
-               f'(keys={self.keys}, meta_keys={self.meta_keys})'
+            f'(keys={self.keys}, meta_keys={self.meta_keys})'

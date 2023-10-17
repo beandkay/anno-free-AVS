@@ -5,11 +5,11 @@ from functools import reduce
 import mmcv
 import numpy as np
 from mmcv.utils import print_log
+from mmseg.core import eval_metrics
+from mmseg.utils import get_root_logger
 from terminaltables import AsciiTable
 from torch.utils.data import Dataset
 
-from mmseg.core import eval_metrics
-from mmseg.utils import get_root_logger
 from .builder import DATASETS
 from .pipelines import Compose
 
@@ -373,7 +373,7 @@ class CustomDataset(Dataset):
 
         for i in range(1, len(summary_table_data[0])):
             eval_results[summary_table_data[0]
-                         [i]] = summary_table_data[1][i] / 100.0
+            [i]] = summary_table_data[1][i] / 100.0
         if mmcv.is_list_of(results, str):
             for file_name in results:
                 os.remove(file_name)

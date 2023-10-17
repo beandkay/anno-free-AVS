@@ -1,23 +1,15 @@
+import os
+import time
+from collections import defaultdict, deque
+from datetime import timedelta
+
+import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
-import cv2
-import os
-from PIL import Image
-from skimage.measure import find_contours
-
-from collections import defaultdict, deque
-import time
-from PIL import Image
-import torch
 import torch.distributed as dist
-from torch import Tensor
 import torch.nn.functional as F
-
-import functools
-
-from datetime import datetime, timedelta
-
+from PIL import Image
 
 
 def mask_iou(pred, target, eps=1e-7, size_average=True):
@@ -45,22 +37,21 @@ def mask_iou(pred, target, eps=1e-7, size_average=True):
     union[no_obj_flag] = num_pixels
 
     if size_average:
-        iou = torch.sum(inter / (union+eps)) / N
+        iou = torch.sum(inter / (union + eps)) / N
         return iou
     else:
-        iou = inter / (union+eps)
+        iou = inter / (union + eps)
         return iou
-    
 
 
-def save_single_mask(pred_mask, save_path, img_size=(224,224)):
+def save_single_mask(pred_mask, save_path, img_size=(224, 224)):
     pred_mask = pred_mask.unsqueeze(dim=0).unsqueeze(dim=0)
     pred_mask = F.interpolate(
-            pred_mask,
-            img_size,
-            mode="bilinear",
-            align_corners=False,
-        ).squeeze(0).squeeze(0)
+        pred_mask,
+        img_size,
+        mode="bilinear",
+        align_corners=False,
+    ).squeeze(0).squeeze(0)
 
     pred_mask = (torch.sigmoid(pred_mask) > 0.5).int()
     pred_mask = pred_mask.cpu().data.numpy().astype(np.uint8)
@@ -69,27 +60,29 @@ def save_single_mask(pred_mask, save_path, img_size=(224,224)):
     im.save(save_path, format='PNG')
 
 
-
 def show_mask(mask, ax, random_color=False):
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
     else:
-        color = np.array([30/255, 144/255, 255/255, 0.6])
+        color = np.array([30 / 255, 144 / 255, 255 / 255, 0.6])
     h, w = mask.shape[-2:]
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     ax.imshow(mask_image)
-    
+
+
 def show_points(coords, labels, ax, marker_size=375):
-    pos_points = coords[labels==1]
-    neg_points = coords[labels==0]
-    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
-    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)   
-    
+    pos_points = coords[labels == 1]
+    neg_points = coords[labels == 0]
+    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white',
+               linewidth=1.25)
+    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white',
+               linewidth=1.25)
+
+
 def show_box(box, ax):
     x0, y0 = box[0], box[1]
     w, h = box[2] - box[0], box[3] - box[1]
-    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0,0,0,0), lw=2))    
-
+    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0, 0, 0, 0), lw=2))
 
 
 def save_mask_to_img(mask, path):
@@ -98,30 +91,30 @@ def save_mask_to_img(mask, path):
     im = Image.fromarray(mask).convert('P')
     im.save(path, format='PNG')
 
-def tensor2img(img, imtype=np.uint8, resolution=(224,224), unnormalize=True):
+
+def tensor2img(img, imtype=np.uint8, resolution=(224, 224), unnormalize=True):
     img = img.cpu()
     if len(img.shape) == 4:
         img = img[0]
-        
+
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
-    
+
     mean = torch.Tensor(mean)
     std = torch.Tensor(std)
-    
+
     if unnormalize:
         img = img * std[:, None, None] + mean[:, None, None]
-    
+
     img_numpy = img.numpy()
     img_numpy *= 255.0
-    img_numpy = np.transpose(img_numpy, (1,2,0))
+    img_numpy = np.transpose(img_numpy, (1, 2, 0))
     img_numpy = img_numpy.astype(imtype)
-    
+
     if resolution:
-        img_numpy = cv2.resize(img_numpy, resolution) 
+        img_numpy = cv2.resize(img_numpy, resolution)
 
     return img_numpy
-
 
 
 def normalize_img(value, vmax=None, vmin=None):
@@ -136,7 +129,8 @@ def normalize_img(value, vmax=None, vmin=None):
     return value
 
 
-def vis_heatmap_bbox(heatmap_arr, img_array, img_name=None, bbox=None, ciou=None,  testset=None, img_size=224, save_dir=None ):
+def vis_heatmap_bbox(heatmap_arr, img_array, img_name=None, bbox=None, ciou=None, testset=None, img_size=224,
+                     save_dir=None):
     '''
     visualization for both image with heatmap and boundingbox if it is available
     heatmap_array shape [1,1,14,14]
@@ -144,10 +138,10 @@ def vis_heatmap_bbox(heatmap_arr, img_array, img_name=None, bbox=None, ciou=None
     '''
     if bbox == None:
         img = cv2.cvtColor(img_array.astype(np.uint8), cv2.COLOR_RGB2BGR)
-        img = cv2.resize(img,(img_size, img_size))
+        img = cv2.resize(img, (img_size, img_size))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        heatmap = cv2.resize(heatmap_arr[0,0], dsize=(img_size, img_size), interpolation=cv2.INTER_LINEAR)
+        heatmap = cv2.resize(heatmap_arr[0, 0], dsize=(img_size, img_size), interpolation=cv2.INTER_LINEAR)
         heatmap = normalize_img(-heatmap)
 
         for x in range(heatmap.shape[0]):
@@ -156,10 +150,10 @@ def vis_heatmap_bbox(heatmap_arr, img_array, img_name=None, bbox=None, ciou=None
         heatmap = heatmap.astype(np.uint8)
         heatmap_img = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
         heatmap_on_img = cv2.addWeighted(heatmap_img, 0.5, img, 0.5, 0)
-        
+
         # return np.array(heatmap_on_img)
         heatmap_on_img_BGR = cv2.cvtColor(heatmap_on_img, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(save_dir , heatmap_on_img_BGR )
+        cv2.imwrite(save_dir, heatmap_on_img_BGR)
 
 
 
@@ -167,10 +161,10 @@ def vis_heatmap_bbox(heatmap_arr, img_array, img_name=None, bbox=None, ciou=None
     else:
         img = cv2.cvtColor(img_array.astype(np.uint8), cv2.COLOR_RGB2BGR)
         ori_img = img
-        img = cv2.resize(img,(img_size, img_size))
+        img = cv2.resize(img, (img_size, img_size))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        heatmap = cv2.resize(heatmap_arr[0,0], dsize=(img_size, img_size), interpolation=cv2.INTER_LINEAR)
+        heatmap = cv2.resize(heatmap_arr[0, 0], dsize=(img_size, img_size), interpolation=cv2.INTER_LINEAR)
         heatmap = normalize_img(-heatmap)
 
         # bbox = False
@@ -193,14 +187,11 @@ def vis_heatmap_bbox(heatmap_arr, img_array, img_name=None, bbox=None, ciou=None
         #                fontScale=0.5, color=(255,255,255), thickness=1)
 
         if save_dir:
-            save_dir = save_dir + '/heat_img_vis/' 
+            save_dir = save_dir + '/heat_img_vis/'
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             heatmap_on_img_BGR = cv2.cvtColor(heatmap_on_img, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(save_dir +'/' + img_name + '_' + '%.4f' % ciou + '.jpg', heatmap_on_img_BGR )
-        
-
-
+            cv2.imwrite(save_dir + '/' + img_name + '_' + '%.4f' % ciou + '.jpg', heatmap_on_img_BGR)
 
 
 def _eval_pr(y_pred, y, num, cuda_flag=True):
@@ -216,6 +207,7 @@ def _eval_pr(y_pred, y, num, cuda_flag=True):
         prec[i], recall[i] = tp / (y_temp.sum() + 1e-20), tp / (y.sum() + 1e-20)
 
     return prec, recall
+
 
 def Eval_Fmeasure(pred, gt, measure_path=None, pr_num=255):
     r"""
@@ -240,7 +232,7 @@ def Eval_Fmeasure(pred, gt, measure_path=None, pr_num=255):
             continue
         prec, recall = _eval_pr(pred[img_id], gt[img_id], pr_num)
         f_score = (1 + beta2) * prec * recall / (beta2 * prec + recall)
-        f_score[f_score != f_score] = 0 # for Nan
+        f_score[f_score != f_score] = 0  # for Nan
         avg_f += f_score
         img_num += 1
         score = avg_f / img_num
@@ -248,7 +240,6 @@ def Eval_Fmeasure(pred, gt, measure_path=None, pr_num=255):
     # fLog.close()
 
     return score.max().item()
-
 
 
 class AverageMeter:
@@ -277,7 +268,6 @@ class AverageMeter:
             v = self.get(key)
             self.__data[key] = [0.0, 0]
             return v
-        
 
 
 class SmoothedValue(object):
@@ -432,8 +422,6 @@ class MetricLogger(object):
             header, total_time_str, total_time / len(iterable)))
 
 
-
-
 def setup_for_distributed(is_master):
     """
     This function disables printing when not in master process
@@ -471,7 +459,3 @@ def get_rank():
 
 def is_main_process():
     return get_rank() == 0
-
-
-
-

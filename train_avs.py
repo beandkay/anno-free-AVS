@@ -1,17 +1,14 @@
 import argparse
 import os
 import time
-import ipdb
-import pdb
-import yaml
-import numpy as np
-from tqdm import tqdm
-from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import CosineAnnealingLR
-
 import warnings
+
+import yaml
+from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 warnings.simplefilter("ignore", UserWarning)
-import datasets
 import models
 import utils
 from statistics import mean
@@ -23,13 +20,12 @@ torch.distributed.init_process_group(backend='nccl')
 local_rank = torch.distributed.get_rank()
 torch.cuda.set_device(local_rank)
 device = torch.device("cuda", local_rank)
-from collections import defaultdict
 from utility import mask_iou, Eval_Fmeasure, AverageMeter, MetricLogger
 
 
 def make_data_loader(spec, tag='', args=None):
     if args.subset == 'ms3':
-        if tag =='train':
+        if tag == 'train':
             from datasets.avsb_dataloader_vggish_ms3_train import S4Dataset
             dataset = S4Dataset(split=tag, args=args)
         else:
@@ -43,13 +39,12 @@ def make_data_loader(spec, tag='', args=None):
         dataset = SyntheticDataset(split=tag, args=args)
     else:
         raise NotImplementedError("To be implemented")
-        
-    
+
     if local_rank == 0:
         log('{} dataset: size={}'.format(tag, len(dataset)))
     sampler = torch.utils.data.distributed.DistributedSampler(dataset)
     loader = DataLoader(dataset, batch_size=spec['batch_size'],
-        shuffle=False, num_workers=args.n_threads, pin_memory=True, sampler=sampler)
+                        shuffle=False, num_workers=args.n_threads, pin_memory=True, sampler=sampler)
     return loader
 
 
@@ -74,7 +69,7 @@ def validate(loader, model):
         bs, T = img.size()[:2]
         mask = mask.squeeze(dim=2).to(device)
         bs, T, H, W = mask.size()
-        all_pred_masks = [] 
+        all_pred_masks = []
 
         for idx in range(bs):
             img_i = img[idx].to(device)
@@ -85,15 +80,14 @@ def validate(loader, model):
             all_pred_masks.append(mask_pred)
         all_pred_masks = torch.stack(all_pred_masks, dim=0)  # BxTxHxW
 
-        gt_masks = mask.reshape(bs*T, H, W)
-        pred_masks = all_pred_masks.reshape(bs*T, H, W)
-        
+        gt_masks = mask.reshape(bs * T, H, W)
+        pred_masks = all_pred_masks.reshape(bs * T, H, W)
+
         miou = mask_iou(pred_masks, gt_masks)
         avg_meter_miou.add({'miou': miou})
         F_score = Eval_Fmeasure(pred_masks, gt_masks)
         avg_meter_F.add({'F_score': F_score})
-        
-    
+
     miou = (avg_meter_miou.pop('miou'))
     F_score = (avg_meter_F.pop('F_score'))
     eval_metrics = {'miou': miou.item(),
@@ -215,16 +209,16 @@ def main(config_, save_path, args):
             result1 = eval_results[metric1]
             metric2 = 'F_score'
             result2 = eval_results[metric2]
-            
+
             if local_rank == 0:
                 log_info.append('val: {}={:.4f}'.format(metric1, result1))
                 writer.add_scalars(metric1, {'val': result1}, epoch)
                 log_info.append('val: {}={:.4f}'.format(metric2, result2))
                 writer.add_scalars(metric2, {'val': result2}, epoch)
-                
+
                 if result1 > max_val_v:
                     max_val_v = result1
-                    save(config, model, save_path, 'best') 
+                    save(config, model, save_path, 'best')
 
                 t = timer.t()
                 prog = (epoch - epoch_start + 1) / (epoch_max - epoch_start + 1)
@@ -261,15 +255,15 @@ if __name__ == '__main__':
     parser.add_argument('--pretrained_weights', type=str, default="", help="Load pretrained weights")
     parser.add_argument('--trainset_shuffle', default=False, action='store_true', help=' ')
     parser.add_argument("--trainset_ratio", type=float, default=1, help="Use the ratio of S4 subset")
-    parser.add_argument('--openset', default=False, action='store_true', help='Open set traing and evaluation of S4 subset ')
+    parser.add_argument('--openset', default=False, action='store_true',
+                        help='Open set traing and evaluation of S4 subset ')
     args = parser.parse_args()
-
 
     with open(args.config, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
         if local_rank == 0:
             print('config loaded.')
-    
+
     current_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
 
     save_name = current_time + '_' + args.name

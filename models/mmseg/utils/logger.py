@@ -26,6 +26,7 @@ def get_root_logger(log_file=None, log_level=logging.INFO):
 
     return logger
 
+
 def print_log(msg, logger=None, level=logging.INFO):
     """Print a log message.
     Args:

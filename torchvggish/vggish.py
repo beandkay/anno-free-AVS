@@ -1,7 +1,5 @@
-import numpy as np
 import torch
 import torch.nn as nn
-from torch import hub
 
 from . import vggish_input, vggish_params
 
@@ -74,7 +72,7 @@ class Postprocessor(nn.Module):
             embeddings_batch.shape,
         )
         assert (
-            embeddings_batch.shape[1] == vggish_params.EMBEDDING_SIZE
+                embeddings_batch.shape[1] == vggish_params.EMBEDDING_SIZE
         ), "Bad batch shape: %r" % (embeddings_batch.shape,)
 
         # Apply PCA.
@@ -95,8 +93,8 @@ class Postprocessor(nn.Module):
         quantized_embeddings = torch.round(
             (clipped_embeddings - vggish_params.QUANTIZE_MIN_VAL)
             * (
-                255.0
-                / (vggish_params.QUANTIZE_MAX_VAL - vggish_params.QUANTIZE_MIN_VAL)
+                    255.0
+                    / (vggish_params.QUANTIZE_MAX_VAL - vggish_params.QUANTIZE_MIN_VAL)
             )
         )
         return torch.squeeze(quantized_embeddings)
@@ -144,7 +142,7 @@ class VGGish(VGG):
     def __init__(self, cfg, device=None):
         super().__init__(make_layers())
         if cfg.TRAIN.FREEZE_AUDIO_EXTRACTOR:
-            state_dict =  torch.load(cfg.TRAIN.PRETRAINED_VGGISH_MODEL_PATH)
+            state_dict = torch.load(cfg.TRAIN.PRETRAINED_VGGISH_MODEL_PATH)
             super().load_state_dict(state_dict)
             print(f'==> Load pretrained VGGish parameters from {cfg.TRAIN.PRETRAINED_VGGISH_MODEL_PATH}')
 
@@ -157,7 +155,7 @@ class VGGish(VGG):
         self.postprocess = cfg.TRAIN.POSTPROCESS_LOG_MEL_WITH_PCA
         if self.postprocess:
             self.pproc = Postprocessor()
-            if cfg.TRAIN.FREEZE_AUDIO_EXTRACTOR :
+            if cfg.TRAIN.FREEZE_AUDIO_EXTRACTOR:
                 state_dict = torch.load(cfg.TRAIN.PRETRAINED_PCA_PARAMS_PATH)
                 # TODO: Convert the state_dict to torch
                 state_dict[vggish_params.PCA_EIGEN_VECTORS_NAME] = torch.as_tensor(

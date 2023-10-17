@@ -4,7 +4,7 @@ from mmcv.utils import deprecated_api_warning, is_tuple_of
 from numpy import random
 
 from ..builder import PIPELINES
-from IPython import embed
+
 
 @PIPELINES.register_module()
 class AlignedResize(object):
@@ -181,7 +181,7 @@ class AlignedResize(object):
             h, w = img.shape[:2]
             assert int(np.ceil(h / self.size_divisor)) * self.size_divisor == h and \
                    int(np.ceil(w / self.size_divisor)) * self.size_divisor == w, \
-                   "img size not align. h:{} w:{}".format(h,w)
+                "img size not align. h:{} w:{}".format(h, w)
         scale_factor = np.array([w_scale, h_scale, w_scale, h_scale],
                                 dtype=np.float32)
         results['img'] = img
@@ -715,7 +715,7 @@ class CLAHE(object):
 
     def __repr__(self):
         repr_str = self.__class__.__name__
-        repr_str += f'(clip_limit={self.clip_limit}, '\
+        repr_str += f'(clip_limit={self.clip_limit}, ' \
                     f'tile_grid_size={self.tile_grid_size})'
         return repr_str
 
@@ -792,6 +792,7 @@ class RandomCrop(object):
     def __repr__(self):
         return self.__class__.__name__ + f'(crop_size={self.crop_size})'
 
+
 @PIPELINES.register_module()
 class CenterCrop(object):
     """Center crop the image & seg.
@@ -808,8 +809,8 @@ class CenterCrop(object):
         """Randomly get a crop bounding box."""
         margin_h = max(img.shape[0] - self.crop_size[0], 0)
         margin_w = max(img.shape[1] - self.crop_size[1], 0)
-        offset_h = margin_h // 2#np.random.randint(0, margin_h + 1)
-        offset_w = margin_w // 2#np.random.randint(0, margin_w + 1)
+        offset_h = margin_h // 2  # np.random.randint(0, margin_h + 1)
+        offset_w = margin_w // 2  # np.random.randint(0, margin_w + 1)
         crop_y1, crop_y2 = offset_h, offset_h + self.crop_size[0]
         crop_x1, crop_x2 = offset_w, offset_w + self.crop_size[1]
 
@@ -1003,7 +1004,7 @@ class AdjustGamma(object):
         assert gamma > 0
         self.gamma = gamma
         inv_gamma = 1.0 / gamma
-        self.table = np.array([(i / 255.0)**inv_gamma * 255
+        self.table = np.array([(i / 255.0) ** inv_gamma * 255
                                for i in np.arange(256)]).astype('uint8')
 
     def __call__(self, results):
@@ -1024,10 +1025,12 @@ class AdjustGamma(object):
     def __repr__(self):
         return self.__class__.__name__ + f'(gamma={self.gamma})'
 
+
 @PIPELINES.register_module()
 class MaillaryHack(object):
     """ map MV 65 class to 19 class like Cityscapes
     """
+
     def __init__(self):
         self.map = [[13, 24, 41], [2, 15], [17], [6], [3], [45, 47], [48], [50], [30], [29],
                     [27], [19], [20, 21, 22], [55], [61], [54], [58], [57], [52]]
@@ -1037,7 +1040,6 @@ class MaillaryHack(object):
             for j in i:
                 if j in self.others:
                     self.others.remove(j)
-
 
     def __call__(self, results):
         """Call function to process the image with gamma correction.
@@ -1166,8 +1168,8 @@ class PhotoMetricDistortion(object):
         if random.randint(2):
             img = mmcv.bgr2hsv(img)
             img[:, :,
-                0] = (img[:, :, 0].astype(int) +
-                      random.randint(-self.hue_delta, self.hue_delta)) % 180
+            0] = (img[:, :, 0].astype(int) +
+                  random.randint(-self.hue_delta, self.hue_delta)) % 180
             img = mmcv.hsv2bgr(img)
         return img
 

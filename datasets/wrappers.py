@@ -1,21 +1,13 @@
-
-import functools
 import random
-import math
-from PIL import Image
 
-import numpy as np
-import torch
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-import torchvision
-
-from datasets import register
-import cv2
-from math import pi
 from torchvision.transforms import InterpolationMode
 
-import torch.nn.functional as F
+from datasets import register
+
+
 def to_mask(mask):
     return transforms.ToTensor()(
         transforms.Grayscale(num_output_channels=1)(
@@ -36,15 +28,15 @@ class ValDataset(Dataset):
         self.augment = augment
 
         self.img_transform = transforms.Compose([
-                transforms.Resize((inp_size, inp_size)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-            ])
+            transforms.Resize((inp_size, inp_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        ])
         self.mask_transform = transforms.Compose([
-                transforms.Resize((inp_size, inp_size), interpolation=Image.NEAREST),
-                transforms.ToTensor(),
-            ])
+            transforms.Resize((inp_size, inp_size), interpolation=Image.NEAREST),
+            transforms.ToTensor(),
+        ])
 
     def __len__(self):
         return len(self.dataset)
@@ -72,21 +64,21 @@ class TrainDataset(Dataset):
 
         self.inp_size = inp_size
         self.img_transform = transforms.Compose([
-                transforms.Resize((self.inp_size, self.inp_size)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-            ])
+            transforms.Resize((self.inp_size, self.inp_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        ])
         self.inverse_transform = transforms.Compose([
-                transforms.Normalize(mean=[0., 0., 0.],
-                                     std=[1/0.229, 1/0.224, 1/0.225]),
-                transforms.Normalize(mean=[-0.485, -0.456, -0.406],
-                                     std=[1, 1, 1])
-            ])
+            transforms.Normalize(mean=[0., 0., 0.],
+                                 std=[1 / 0.229, 1 / 0.224, 1 / 0.225]),
+            transforms.Normalize(mean=[-0.485, -0.456, -0.406],
+                                 std=[1, 1, 1])
+        ])
         self.mask_transform = transforms.Compose([
-                transforms.Resize((self.inp_size, self.inp_size)),
-                transforms.ToTensor(),
-            ])
+            transforms.Resize((self.inp_size, self.inp_size)),
+            transforms.ToTensor(),
+        ])
 
     def __len__(self):
         return len(self.dataset)

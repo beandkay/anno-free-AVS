@@ -1,6 +1,6 @@
 import logging
-import yaml
 from functools import partial
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,13 +14,11 @@ from .iou_loss import IOU
 from typing import Any, Optional, Tuple
 
 import sys
-sys.path.append('..')
 
+sys.path.append('..')
 
 from torchvggish import vggish
 from configs.vggish_config import cfg as vggish_cfg
-
-
 
 
 class audio_extractor(torch.nn.Module):
@@ -31,8 +29,6 @@ class audio_extractor(torch.nn.Module):
     def forward(self, audio):
         audio_fea = self.audio_backbone(audio)
         return audio_fea
-
-
 
 
 def init_weights(layer):
@@ -67,6 +63,7 @@ class BBCEWithLogitLoss(nn.Module):
     '''
     Balanced BCEWithLogitLoss
     '''
+
     def __init__(self):
         super(BBCEWithLogitLoss, self).__init__()
 
@@ -82,6 +79,7 @@ class BBCEWithLogitLoss(nn.Module):
 
         return loss
 
+
 def _iou_loss(pred, target):
     pred = torch.sigmoid(pred)
     inter = (pred * target).sum(dim=(2, 3))
@@ -89,6 +87,7 @@ def _iou_loss(pred, target):
     iou = 1 - (inter / union)
 
     return iou.mean()
+
 
 class PositionEmbeddingRandom(nn.Module):
     """
@@ -171,8 +170,6 @@ class SAM(nn.Module):
                 if "prompt" not in k and "mask_decoder" not in k and "prompt_encoder" not in k:
                     p.requires_grad = False
 
-
-
         self.loss_mode = loss
         if self.loss_mode == 'bce':
             self.criterionBCE = torch.nn.BCEWithLogitsLoss()
@@ -189,24 +186,22 @@ class SAM(nn.Module):
         self.image_embedding_size = inp_size // encoder_mode['patch_size']
         self.no_mask_embed = nn.Embedding(1, encoder_mode['prompt_embed_dim'])
 
-    
     def set_input(self, input, spec, gt_mask):
         self.input = input.to(self.device)
         B, T, C, H, W = self.input.size()
-        self.input = self.input.reshape(B*T, C, H, W)
+        self.input = self.input.reshape(B * T, C, H, W)
 
         self.spec = spec.to(self.device)
         B, T, C_a, H_a, W_a = self.spec.size()
-        self.spec = self.spec.reshape(B*T, C_a, H_a, W_a)
+        self.spec = self.spec.reshape(B * T, C_a, H_a, W_a)
 
-        
         #### vggish audio encoder
         with torch.no_grad():
-            spec_out = self.audio_encoder(self.spec).reshape(B*T, -1)    # Bx128
+            spec_out = self.audio_encoder(self.spec).reshape(B * T, -1)  # Bx128
             self.spec = spec_out.detach().to(self.device)
-            
+
         B, T, C_m, H_m, W_m = gt_mask.size()
-        gt_mask = gt_mask.reshape(B*T, C_m, H_m, W_m)
+        gt_mask = gt_mask.reshape(B * T, C_m, H_m, W_m)
         self.gt_mask = gt_mask.to(self.device)
 
     def get_dense_pe(self) -> torch.Tensor:
@@ -220,23 +215,23 @@ class SAM(nn.Module):
         """
         return self.pe_layer(self.image_embedding_size).unsqueeze(0)
 
-
     def forward(self):
         bs = 1
 
         # Embed prompts
-        sparse_embeddings = torch.empty((bs, 0, self.prompt_embed_dim), device=self.input.device)    # torch.Size([1, 0, 256])
+        sparse_embeddings = torch.empty((bs, 0, self.prompt_embed_dim),
+                                        device=self.input.device)  # torch.Size([1, 0, 256])
         # sparse_embeddings = self.audio_MLP(self.spec)
 
         dense_embeddings = self.no_mask_embed.weight.reshape(1, -1, 1, 1).expand(
             bs, -1, self.image_embedding_size, self.image_embedding_size
-        )                                       
+        )
         # dense_embeddings: torch.Size([1, 256, 64, 64])                            
 
         # import ipdb; ipdb.set_trace()
         # self.input: torch.Size([2, 3, 1024, 1024])
         # self.spec: torch.Size([2, 512])
-        self.features = self.image_encoder(self.input, self.spec)   # torch.Size([2, 256, 64, 64])
+        self.features = self.image_encoder(self.input, self.spec)  # torch.Size([2, 256, 64, 64])
 
         # Predict masks
         low_res_masks, iou_predictions = self.mask_decoder(
@@ -268,19 +263,18 @@ class SAM(nn.Module):
 
         # suppose input: BxCxHxW; spec: BxC
         # import ipdb; ipdb.set_trace()
-        B_a, C_a , H_a, W_a = spec.size()
+        B_a, C_a, H_a, W_a = spec.size()
 
         # with torch.no_grad():
         #     spec_out = self.audio_encoder(spec)
         #     spec_out = nn.AdaptiveMaxPool2d((1, 1))(spec_out).reshape(B_a, -1)
         #     spec = spec_out.detach().to(self.device)
-        
+
         with torch.no_grad():
             spec_out = self.audio_encoder(spec).reshape(B_a, -1)
             spec = spec_out.detach().to(self.device)
 
-
-        self.features = self.image_encoder(input, spec)   # torch.Size([5, 256, 64, 64])
+        self.features = self.image_encoder(input, spec)  # torch.Size([5, 256, 64, 64])
 
         # Predict masks
         low_res_masks, iou_predictions = self.mask_decoder(
@@ -296,10 +290,10 @@ class SAM(nn.Module):
         return masks
 
     def postprocess_masks(
-        self,
-        masks: torch.Tensor,
-        input_size: Tuple[int, ...],
-        original_size: Tuple[int, ...],
+            self,
+            masks: torch.Tensor,
+            input_size: Tuple[int, ...],
+            original_size: Tuple[int, ...],
     ) -> torch.Tensor:
         """
         Remove padding and upscale masks to the original image size.
